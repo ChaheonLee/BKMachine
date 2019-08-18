@@ -94,6 +94,7 @@ iris_dataset=datasets.load_iris()
 #X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=0)
 #
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.neighbors import KNeighborsRegressor
 ## knn 분석2
 # clf = KNeighborsClassifier(n_neighbors=3)
 #
@@ -250,16 +251,19 @@ class Train(views.APIView):
         model_name = request.data.pop('model_name')
 
         try:
-            clf = KNeighborsClassifier(**request.data)
+            #clf = KNeighborsClassifier(**request.data)
+            #clf = KNeighborsRegressor(**request.data)
+            clf = RandomForestClassifier(**request.data)
             clf.fit(X_train, y_train)
-
+            #accuracy = clf.score(X_train, y_train) #학습 정확도 출력
+            accuracy = clf.score(X_test, y_test) #테스트 정확도 출력
         except Exception as err:
             return Response(str(err), status=status.HTTP_400_BAD_REQUEST)
 
         path = os.path.join(settings.MODEL_ROOT, model_name)
         with open(path,'wb') as file:
             pickle.dump(clf,file)
-        return Response(status=status.HTTP_200_OK)
+        return Response("모델의 정확도 : " + str(accuracy), status=status.HTTP_200_OK)
 
 # 결과 예측 예시
 # class Predict(views.APIView):
@@ -298,4 +302,4 @@ class Predict(views.APIView):
             except Exception as err:
                 return Response(str(err),status=status.HTTP_400_BAD_REQUEST)
 
-        return Response(predictions, status=status.HTTP_200_OK)
+        return Response("예측 결과(Target) : " + str(predictions), status=status.HTTP_200_OK)

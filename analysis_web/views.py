@@ -11,7 +11,7 @@ from rest_framework import views
 from rest_framework import status
 from rest_framework.response import Response
 from sklearn.ensemble import RandomForestClassifier
-
+from sklearn.ensemble import GradientBoostingClassifier
 import matplotlib.pyplot as plt
 import mglearn
 from sklearn.model_selection import train_test_split
@@ -19,7 +19,12 @@ from pandas import plotting
 from pandas import DataFrame
 __all__ = [plotting]
 iris_dataset=datasets.load_iris()
-
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.tree import export_graphviz
+import graphviz
+from sklearn.tree import DecisionTreeClassifier
+from IPython.display import display
 ## Data 형태 분석
 #X_train, X_test, y_train, y_test = train_test_split(iris_dataset['data'],iris_dataset['target'],random_state=0)
 #
@@ -93,8 +98,7 @@ iris_dataset=datasets.load_iris()
 #
 #X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=0)
 #
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.neighbors import KNeighborsRegressor
+
 ## knn 분석2
 # clf = KNeighborsClassifier(n_neighbors=3)
 #
@@ -178,11 +182,20 @@ for row in data:#csv파일 각 열들을 출력
     print(row)
 f.close()
 print("")
+
+#items : 실제 데이터 기반 텍스트용
 #items = pd.read_csv('loan.csv',header=None,names=['stnd_dt','cusno','module','modulenm','acno','newdt','enddt','interest','target'],thousands=',')
 items = pd.read_csv('loan.csv',header=None,names=['target','stnd_dt','cusno','module','modulenm','acno','newdt','enddt','interest'],thousands=',') #target 기반 데이터 네이밍
 print(items.columns)
 print(items['target'])
 
+items2 = pd.read_csv('basic.csv',header=None,names=['target','sex','age','income','degree'],thousands=',') #target 기반 데이터 네이밍
+print(items2.columns)
+print(items2['target'])
+
+items3 = pd.read_csv('supplement.csv',header=None,names=['target','sex','age','income','degree','postage','postage_delayed_cnt','health','safe_asset','invest_tendency','insurance_fee','tenant_info'],thousands=',') #target 기반 데이터 네이밍
+print(items3.columns)
+print(items3['target'])
 
 ## DataFrame을 통한 다차원 학습 실패(단 1:1 매칭 학습 및 예측은 가능) --> 일반 arrary 형태 사용
 data_f = pd.DataFrame(data=dict(interest = items['interest'], module = items['module'])) #converting to DataFrame(딕셔너리 형태)
@@ -196,7 +209,6 @@ X_new = np.array([[2.2]])
 prediction = knn.predict(X_new)
 print("예측:",prediction)
 print("dd: {:.2f}".format(knn.score(X_test,y_test)))
-
 
 
 ## 일반 array형태를 통한 다차원적 학습
@@ -217,6 +229,59 @@ example = example.reshape(1, -1)
 prediction = clf.predict(example)
 print(prediction)
 
+## 일반 array형태를 통한 다차원적 학습
+X = np.array(items2.drop(['target'], 1))
+print(X)
+y = np.array(items2['target'])
+print(y)
+X_train, X_test, y_train, y_test=train_test_split(X,y,random_state=0)
+clf = KNeighborsClassifier(n_neighbors=3)
+clf.fit(X_train, y_train)
+accuracy = clf.score(X_test, y_test) #test
+print(accuracy) #this works fine
+
+# 예측 예시를 통한 예측 진행
+example = np.array([1,30,9000,4])
+example = example.reshape(1, -1)
+
+prediction = clf.predict(example)
+print(prediction)
+
+plt.plot(X, y, 'o')
+plt.xlabel("Property")
+plt.ylabel("Target")
+plt.show()
+
+## 일반 array형태를 통한 다차원적 학습
+# RandomForest 주요 매개변수 : n_estimators(클수록 안정적. 더 많은 트리 사용), max_features(트리의 무작위성. 적을 수록 안정적), max_depth(사전 가지치기 효과. 작을 수록 좋다. 통상 5)
+# GradientBoosting 주요 매개변수 : n_estimators(너무 크면 과대 적합), learning_rate(낮출수록 좋음. 0.01), max_dept(3이 적절)
+X = np.array(items3.drop(['target'], 1))
+print(X)
+y = np.array(items3['target'])
+print(y)
+X_train, X_test, y_train, y_test=train_test_split(X,y,random_state=0)
+#clf = RandomForestClassifier(n_estimators = 10, max_features = 10, max_depth = 5)
+clf = DecisionTreeClassifier(max_features = 3, max_depth = 3)
+#clf = KNeighborsClassifier(n_neighbors=3)
+clf.fit(X_train, y_train)
+accuracy = clf.score(X_test, y_test) #test
+print(accuracy) #this works fine
+
+# 예측 예시를 통한 예측 진행
+example = np.array([1,30,4000,3,38000,1,0,80,2,30,0])
+example = example.reshape(1, -1)
+
+prediction = clf.predict(example)
+print(prediction)
+
+#학습 과정 decision tree 이미지 생성
+export_graphviz(clf,out_file="tree1.dot",class_names=["1","2","3","4","5","6","7","8","9"],feature_names=["sex","age","income","degree","postage","postage_delayed_cnt","health","safe_asset","invest_tendency","insurance_fee","tenant_info"],impurity=False,filled=True)
+
+with open("tree1.dot") as f:
+    dot_graph = f.read()
+dot = graphviz.Source(dot_graph)
+dot.format = 'png'
+dot.render(filename='tree2.png')
 #items.describe()
 
 ## Django Rest Framework Post 예제
@@ -242,32 +307,69 @@ print(prediction)
 #             pickle.dump(clf,file)
 #         return Response(status=status.HTTP_200_OK)
 
-# 엑셀 파일 데이터 및 학습 매개변수 post하여(Jason) 학습 모델링(array 형태로 진행)
+# 학습 매개변수 post하여(Jason) 학습 모델링(array 형태로 진행)
+
 class Train(views.APIView):
      def post(self, request):
-        X = np.array(items.drop(['target'], 1))
-        y = np.array(items['target'])
+
+        #request.POST._mutable = True
+
+        X = np.array(items3.drop(['target'], 1))
+        y = np.array(items3['target'])
         X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=0)
         model_name = request.data.pop('model_name')
 
-        try:
-            #clf = KNeighborsClassifier(**request.data)
-            #clf = KNeighborsRegressor(**request.data)
-            clf = RandomForestClassifier(**request.data)
-            clf.fit(X_train, y_train)
-            #accuracy = clf.score(X_train, y_train) #학습 정확도 출력
-            accuracy = clf.score(X_test, y_test) #테스트 정확도 출력
-        except Exception as err:
-            return Response(str(err), status=status.HTTP_400_BAD_REQUEST)
 
-        path = os.path.join(settings.MODEL_ROOT, model_name)
-        with open(path,'wb') as file:
-            pickle.dump(clf,file)
-        return Response("모델의 정확도 : " + str(accuracy), status=status.HTTP_200_OK)
+        if model_name == 'model_1':
+         try:
+             clf = KNeighborsClassifier(**request.data)
+             #clf = RandomForestClassifier(**request.data)
+             #clf = GradientBoostingClassifier(**request.data)
+             clf.fit(X_train, y_train)
+             #accuracy = clf.score(X_train, y_train) #학습 정확도 출력
+             accuracy = clf.score(X_test, y_test) #테스트 정확도 출력
+         except Exception as err:
+             return Response(str(err), status=status.HTTP_400_BAD_REQUEST)
+
+         path = os.path.join(settings.MODEL_ROOT, model_name)
+         with open(path,'wb') as file:
+             pickle.dump(clf,file)
+         return Response("모델의 정확도 : " + str(accuracy), status=status.HTTP_200_OK)
+        elif model_name == 'model_2':
+         try:
+             #clf = KNeighborsClassifier(**request.data)
+             clf = RandomForestClassifier(**request.data)
+             # clf = GradientBoostingClassifier(**request.data)
+             clf.fit(X_train, y_train)
+             #accuracy = clf.score(X_train, y_train) #학습 정확도 출력
+             accuracy = clf.score(X_test, y_test) #테스트 정확도 출력
+         except Exception as err:
+             return Response(str(err), status=status.HTTP_400_BAD_REQUEST)
+
+         path = os.path.join(settings.MODEL_ROOT, model_name)
+         with open(path,'wb') as file:
+             pickle.dump(clf,file)
+         return Response("모델의 정확도 : " + str(accuracy), status=status.HTTP_200_OK)
+        else:
+         try:
+             #clf = KNeighborsClassifier(**request.data)
+             #clf = RandomForestClassifier(**request.data)
+             clf = GradientBoostingClassifier(**request.data)
+             clf.fit(X_train, y_train)
+             #accuracy = clf.score(X_train, y_train) #학습 정확도 출력
+             accuracy = clf.score(X_test, y_test) #테스트 정확도 출력
+         except Exception as err:
+             return Response(str(err), status=status.HTTP_400_BAD_REQUEST)
+
+         path = os.path.join(settings.MODEL_ROOT, model_name)
+         with open(path,'wb') as file:
+             pickle.dump(clf,file)
+         return Response("모델의 정확도 : " + str(accuracy), status=status.HTTP_200_OK)
+
 
 # 결과 예측 예시
 # class Predict(views.APIView):
-#     def post(self, request):
+#     def post(self, request):$
 #         predictions = []
 #         for entry in request.data:
 #             model_name = entry.pop('model_name')
@@ -287,12 +389,15 @@ class Train(views.APIView):
 # 예측에 쓰이는 데이터는 Jason 형태로 주고 받는 Django Rest Framework 특성상 DataFrame 형태로 예측에 사용되어야함(array x)
 class Predict(views.APIView):
     def post(self, request):
+        #request.POST._mutable = True
+
         predictions = []
         for entry in request.data:
             model_name = entry.pop('model_name')
             path = os.path.join(settings.MODEL_ROOT, model_name)
             with open(path,'rb') as file:
                 model = pickle.load(file)
+
             try:
                 result = pd.DataFrame([entry])
                 #result = result.reshape(1, -1)
